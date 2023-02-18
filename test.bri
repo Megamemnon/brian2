@@ -1,5 +1,8 @@
 (print (concat "Hello" "World!"))
-(debug (defunc ++ "+ +") (print (++ 2 (* 2 10) 30)))
+(debug -
+  (op ++ "+ +") -
+  (print (++ 2 (* 2 10) 30)) -
+)
 
 
 

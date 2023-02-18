@@ -1,9 +1,8 @@
 import enum, sys, types, copy
 
-Program=[]
 Tokens=[]
 serial=0
-Root=None
+Transformations=[]
 
 class Environment():
   def __init__(self):
@@ -67,6 +66,106 @@ class TreeNode():
       node=node.next
     return values
   
+  def equivalent(self, node):
+    d=True
+    n=True
+    if type(node.data) is DataNode:
+      if node.data.type==TokenType.constant and node.data.symbol[0].isupper():
+        return True
+      if type(self.data) is DataNode:
+        if node.data.type!=self.data.type:
+          return False
+        if node.data.symbol!=self.data.symbol:
+          return False
+      else:
+        return False
+    else:
+      if type(self.data) is DataNode:
+        return False
+      d=self.data.equivalent(node.data)
+    if self.next:
+      if node.next:
+        n=self.next.equivalent(node.next)
+      else:
+        return False
+    return d and n
+  
+  def unify(self, node):
+    d=[]
+    n=[]
+    if type(node.data) is DataNode:
+      if node.data.type==TokenType.constant and node.data.symbol[0].isupper():
+        return [(node, self)]
+      if type(self.data) is DataNode:
+        if self.data.type!=node.data.typdatae or self.data.symbol!=node.data.symbol:
+          return None
+      else:
+        return None
+    else:
+      if type(self.data) is TreeNode:
+        d=self.data.unify(node.data)
+    if self.next:
+      if node.next:
+        n=self.next.unify(node.next)
+      else:
+        return None
+    if d is None and n is None:
+      return None
+    u=[]
+    if type(d) is list:
+      u.extend(d)
+    if type(n) is list:
+      u.extend(n)
+    return u
+
+  def resolve(self, node):
+    resolution=[]
+    if self.equivalent(node):
+      u=self.unify(node)
+      if u is not None:
+        resolution.append([self, u])
+    if type(self.data) is TreeNode:
+      if type(node.data) is TreeNode:
+        u=self.data.resolve(node.data)
+        if u is not None:
+          resolution.extend(u)
+    if self.next:
+      if node.next:
+        u=self.next.resolve(node.next)
+        if u is not None:
+          resolution.extend(u)
+    if resolution==[]:
+      return None
+    return resolution
+  
+  def replaceVariable(self, var, newnode):
+    if type(self.data) is DataNode:
+      if self.data.symbol==var:
+        self.data=copy.deepcopy(newnode)
+    else:
+      self.data.replaceVariable(var, newnode)
+    if self.next:
+      self.next.replaceVariable(var, newnode)
+
+  def applyUnifier(self, unifier):
+    if type(unifier) is list:
+      for u in unifier:
+        if type(self.data) is DataNode:
+          if self.data.symbol==u[0].data.symbol:
+            self.data=copy.deepcopy(u[1])
+          else:
+            self.replaceVariable(u[0].data.symbol, u[1])
+        else:
+          self.replaceVariable(u[0].data.symbol, u[1])
+    else:
+      if type(self.data) is DataNode:
+        if self.data.symbol==u[0].data.symbol:
+          self.data=copy.deepcopy(u[1])
+        else:
+          self.replaceVariable(u[0].data.symbol, u[1])
+      else:
+        self.replaceVariable(u[0].data.symbol, u[1])
+
 def tokenize(formula):
   index=0
   tokens=[]
@@ -221,16 +320,47 @@ def eval(node, env):
             return DataNode(x[1], x[0], 0)
     return node
 
-
 def runProgram(program):
+  global Transformations
   env=Environment()
   i=0
   while i<len(program):
-    t=tokenize(program[i])
-    r=parse(t)
-    if r is not None:
-      # print(f'{r.getFormula()}')
-      eval(r, env)
+    line=program[i]
+    llist=line.split()
+    while llist[-1]=='-':
+      line=' '.join(llist[:-1])
+      i+=1
+      line+=' '+program[i]
+      llist=line.split()
+    t=tokenize(line)
+    p=parse(t)
+    if p is not None:
+      changed=True
+      while changed:
+        changed=False
+        for t in Transformations:
+          l=t.data
+          r=t.next.data
+          res=p.resolve(l)
+          if res is not None:
+            for nu in res:
+              rc=copy.deepcopy(r)
+              rcformula=rc.getFormula()
+              for u in nu[1]:
+                rc.applyUnifier(u)
+              rc2formula=rc.getFormula()
+              if rcformula!=rc2formula:
+                changed=True
+                if env.debug:
+                  print(f'# (xform {t.getFormula})')
+                  print(f'# Program Line {p.getFormula()}')
+                  print(f'# Matched Node {nu[0].getFormula()}')
+                  print(f'# Transformed Node {rc2formula}')
+                if nu[0].id==p.id:
+                  p=rc
+                else:
+                  p.replaceNode(nu[0],rc)
+      eval(p, env)
     i+=1
 
 # Primitive Functions
@@ -302,15 +432,21 @@ functions={
   '*':      func_mult,
   '/':      func_div,
   'concat': func_concat,
-  'defunc': func_defFunc
+  'op':     func_defFunc
   }    
 
 def prefunc_debug(parentnode, env):
   env.debug=True
   return parentnode.next
 
+def prefunc_xform(parentnode, env):
+  global Transformations
+  Transformations.append(parentnode.next)
+  return None
+
 prefunctions={
-  'debug':   prefunc_debug
+  'debug':  prefunc_debug,
+  'xform':  prefunc_xform    
   } 
 
 def main():
