@@ -310,8 +310,8 @@ def apply(func, params):
     if type(func) is types.FunctionType:
         return func(params)
     elif type(func) is str:
-        if func in ParamFunctions:
-            return ParamFunctions[func](params)
+        if func in Operators:
+            return Operators[func](params)
         else:
             return [f'({func} {" ".join(params[0])})', TokenType.quoted_text]
     elif type(func) is list:
@@ -325,8 +325,8 @@ def eval(node, env):
     if node is None:
         return None
     if type(node.data) is DataNode:
-        if node.data.symbol in PreFunctions:
-            func = PreFunctions[node.data.symbol]
+        if node.data.symbol in Functions:
+            func = Functions[node.data.symbol]
             node = func(node, env)
             if node is None:
                 return None
@@ -339,13 +339,13 @@ def eval(node, env):
         node.data = eval(node.data, env2)
     node.next = eval(node.next, env2)
     if type(node.data) is DataNode:
-        if node.data.symbol in ParamFunctions:
+        if node.data.symbol in Operators:
             if env.debug:
                 print(f"# {dbug:<{env.debugindent*2}}OPERATOR: {node.data.symbol}")
             params = node.getValueList()
             if env.debug:
                 print(f"# {dbug:<{env.debugindent*2}}OPERAND: {params}")
-            func = ParamFunctions[node.data.symbol]
+            func = Operators[node.data.symbol]
             x = apply(func, [params, TokenType.unknown])
             if env.debug:
                 print(f"# {dbug:<{env.debugindent*2}}RESULT: {x}")
@@ -404,24 +404,22 @@ def runProgram(program):
         i += 1
 
 
-# Primitive Functions
+# Primitive Functions and Operators
 
 
-def prefunc_debug(parentnode, env):
+def func_debug(parentnode, env):
     env.debug = True
     return parentnode.next
 
 
-def prefunc_xform(parentnode, env):
+def func_defunc(parentnode, env):
     global Transformations
     Transformations.append(parentnode.next)
     return None
 
 
-PreFunctions = {"debug": prefunc_debug, "xform": prefunc_xform}
 
-
-def nodefunc_if(node, env):
+def func_if(node, env):
     global serial
     b = False
     dat=TreeNode(serial)
@@ -456,17 +454,17 @@ def nodefunc_if(node, env):
         else:
             return None
 
+Functions = {"debug": func_debug, "func": func_defunc, "if": func_if}
 
-NodeFunctions = {"if": nodefunc_if}
 
 
-def func_print(args):
+def op_print(args):
     for a in args[0]:
         print(f"{a}")
     return None
 
 
-def func_add(args):
+def op_add(args):
     if args is None:
         return None
     if len(args[0]) == 1:
@@ -478,7 +476,7 @@ def func_add(args):
     return [r, TokenType.number]
 
 
-def func_sub(args):
+def op_sub(args):
     if args is None:
         return None
     if len(args[0]) == 1:
@@ -490,7 +488,7 @@ def func_sub(args):
     return [r, TokenType.number]
 
 
-def func_mult(args):
+def op_mult(args):
     if args is None:
         return None
     if len(args[0]) == 1:
@@ -502,7 +500,7 @@ def func_mult(args):
     return [r, TokenType.number]
 
 
-def func_div(args):
+def op_div(args):
     if args is None:
         return None
     if len(args[0]) == 1:
@@ -514,27 +512,27 @@ def func_div(args):
     return [r, TokenType.number]
 
 
-def func_concat(args):
+def op_concat(args):
     if args is None:
         return None
     return [" ".join(args[0]), TokenType.quoted_text]
 
 
-def func_defFunc(args):
+def op_defop(args):
     if args is None:
         return None
-    ParamFunctions[args[0][0]] = args[0][1].split()
+    Operators[args[0][0]] = args[0][1].split()
     return None
 
 
-ParamFunctions = {
-    "print": func_print,
-    "+": func_add,
-    "-": func_sub,
-    "*": func_mult,
-    "/": func_div,
-    "concat": func_concat,
-    "op": func_defFunc,
+Operators = {
+    "print": op_print,
+    "+": op_add,
+    "-": op_sub,
+    "*": op_mult,
+    "/": op_div,
+    "concat": op_concat,
+    "op": op_defop,
 }
 
 
