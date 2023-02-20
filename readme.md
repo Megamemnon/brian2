@@ -20,5 +20,5 @@ For example:
  The <b>if</b> Constant is a Function which modifies its node of the Abstract Syntax Tree as follows:  
 <code>(if true A B) -> A  
 (if false A B) -> B  
-</code>  
+</code>
  During the Function phase of Evaluation, Functions in the Abstract Syntax Tree are evaluated from the root down to each leaf node so that all Functions can modify the lower nodes prior to those nodes being Evaluated. 
