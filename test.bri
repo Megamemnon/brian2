@@ -1,5 +1,6 @@
 # (func (++ A B C) (+ A (+ B C)) )
-# (print (++ 1 2 3))
+(op "++" "+ +")
+(print (++ 1 2 3))
 (print (concat "Hello" "World!"))
 
 

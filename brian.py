@@ -217,6 +217,8 @@ def tokenize(formula):
             c = 0
             while index < len(formula) and c != '"':
                 index += 1
+                if index>=len(formula):
+                    sys.exit(f'Tokenization Error: End of quoted text not found in {formula}')
                 c = formula[index]
                 word += c
             word = word[:-1]
@@ -418,7 +420,6 @@ def func_defunc(parentnode, env):
     return None
 
 
-
 def func_if(node, env):
     global serial
     b = False
@@ -430,13 +431,13 @@ def func_if(node, env):
         b=False
     else:
         if type(dat) is DataNode:
-            if dat.symbol=='true':
+            if dat.val!=0:
                 b=True
             else:
                 b=False
         else:
             if type(dat.data) is DataNode:
-                if dat.data.symbol=='true':
+                if dat.data.val!=0:
                     b=True
                 else:
                     b=False
@@ -468,7 +469,7 @@ def op_add(args):
     if args is None:
         return None
     if len(args[0]) == 1:
-        return args[0]
+        return [args[0], TokenType.number]
     r = args[0][0] + args[0][1]
     if len(args[0]) > 2:
         r = [r]
@@ -480,7 +481,7 @@ def op_sub(args):
     if args is None:
         return None
     if len(args[0]) == 1:
-        return args[0]
+        return [args[0], TokenType.number]
     r = args[0][0] - args[0][1]
     if len(args[0]) > 2:
         r = [r]
@@ -492,7 +493,7 @@ def op_mult(args):
     if args is None:
         return None
     if len(args[0]) == 1:
-        return args[0]
+        return [args[0], TokenType.number]
     r = args[0][0] * args[0][1]
     if len(args[0]) > 2:
         r = [r]
@@ -504,13 +505,82 @@ def op_div(args):
     if args is None:
         return None
     if len(args[0]) == 1:
-        return args[0]
+        return [args[0], TokenType.number]
     r = args[0][0] / args[0][1]
     if len(args[0]) > 2:
         r = [r]
         r.extend(args[0][2:])
     return [r, TokenType.number]
 
+def op_eq(args):
+    if args is None:
+        return None
+    if len(args[0]) == 1:
+        return [0, TokenType.number]
+    if args[0][0] == args[0][1]:
+        r=1
+    else:
+        r=0
+    if len(args[0]) > 2:
+        r = [r]
+        r.extend(args[0][2:])
+    return [r, TokenType.number]
+
+def op_lteq(args):
+    if args is None:
+        return None
+    if len(args[0]) == 1:
+        return [0, TokenType.number]
+    if args[0][0] >= args[0][1]:
+        r=1
+    else:
+        r=0
+    if len(args[0]) > 2:
+        r = [r]
+        r.extend(args[0][2:])
+    return [r, TokenType.number]
+
+def op_gteq(args):
+    if args is None:
+        return None
+    if len(args[0]) == 1:
+        return [0, TokenType.number]
+    if args[0][0] <= args[0][1]:
+        r=1
+    else:
+        r=0
+    if len(args[0]) > 2:
+        r = [r]
+        r.extend(args[0][2:])
+    return [r, TokenType.number]
+
+def op_lt(args):
+    if args is None:
+        return None
+    if len(args[0]) == 1:
+        return [0, TokenType.number]
+    if args[0][0] < args[0][1]:
+        r=1
+    else:
+        r=0
+    if len(args[0]) > 2:
+        r = [r]
+        r.extend(args[0][2:])
+    return [r, TokenType.number]
+
+def op_gt(args):
+    if args is None:
+        return None
+    if len(args[0]) == 1:
+        return [0, TokenType.number]
+    if args[0][0] > args[0][1]:
+        r=1
+    else:
+        r=0
+    if len(args[0]) > 2:
+        r = [r]
+        r.extend(args[0][2:])
+    return [r, TokenType.number]
 
 def op_concat(args):
     if args is None:
@@ -531,6 +601,11 @@ Operators = {
     "-": op_sub,
     "*": op_mult,
     "/": op_div,
+    "=": op_eq,
+    ">=": op_gteq,
+    "<=": op_lteq,
+    ">": op_gt,
+    "<": op_lt,
     "concat": op_concat,
     "op": op_defop,
 }
