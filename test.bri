@@ -1,6 +1,5 @@
-(func (++ A B C) (+ A (+ B C)) )
-# (op "++" "+ +")
-(print (++ 1 2 3))
-(print (concat "Hello" "World!"))
-
-
+#(func (++ A B C) (+ A (+ B C)) )
+#(debug (print (++ 1 2 3)))
+#(print (concat "Hello" "World!"))
+#(if (> 4 2) (print 1) (print 0))
+(loop 0 10 1 '(print "Hello World!") (print "something else") (print "any even something else"))

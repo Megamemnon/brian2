@@ -14,6 +14,7 @@ class Environment:
         self.debugindent = 0
         self.line = ""
         self.linenumber = 0
+        self.vars={}
 
 
 class TokenType(enum.Enum):
@@ -21,8 +22,9 @@ class TokenType(enum.Enum):
     parenclose = 2
     constant = 3
     number = 4
-    quoted_text = 5
+    string = 5
     unknown = 6
+    # quote=7
 
 
 class DataNode:
@@ -48,7 +50,7 @@ class TreeNode:
         if type(self.data) is TreeNode:
             formula += "(" + self.data.getFormula() + ")"
         elif type(self.data) is DataNode:
-            if self.data.type == TokenType.quoted_text:
+            if self.data.type == TokenType.string:
                 formula += '"' + self.data.symbol + '" '
             else:
                 formula += self.data.symbol + " "
@@ -226,6 +228,9 @@ def tokenize(formula):
         elif c in ")":
             token = DataNode(TokenType.parenclose, ")", 0)
             tokens.append(token)
+        # elif c in "'":
+        #     token = DataNode(TokenType.quote, "'", 0)
+        #     tokens.append(token)
         elif c == '"':
             word = ""
             c = 0
@@ -238,7 +243,7 @@ def tokenize(formula):
                 c = formula[index]
                 word += c
             word = word[:-1]
-            token = DataNode(TokenType.quoted_text, word, 0)
+            token = DataNode(TokenType.string, word, 0)
             tokens.append(token)
         elif c not in " \t\n\r,()":
             word = c
@@ -324,31 +329,18 @@ def loadFile(filepath):
     return prog
 
 
-def apply(func, params):
-    if type(func) is types.FunctionType:
-        return func(params)
-    elif type(func) is str:
-        if func in Operators:
-            return Operators[func](params)
-        else:
-            return [f'({func} {" ".join(params[0])})', TokenType.quoted_text]
-    elif type(func) is list:
-        for f in func:
-            params = apply(f, params)
-        return params
-    return None
-
-
 def eval(node, env):
     if node is None:
         return None
     if type(node.data) is DataNode:
+        if node.data.symbol=="'":
+            return node.next
         if node.data.symbol in Functions:
             func = Functions[node.data.symbol]
             node = func(node, env)
             if node is None:
                 return None
-    env2 = copy.copy(env)
+    env2 = copy.deepcopy(env)
     dbug = " "
     if env.debug:
         print(f"# {dbug:<{env.debugindent*2}}NODE: {node.getFormula()}")
@@ -359,24 +351,15 @@ def eval(node, env):
     if type(node.data) is DataNode:
         if node.data.symbol in Operators:
             if env.debug:
-                print(f"# {dbug:<{env.debugindent*2}}OPERATOR: {node.data.symbol}")
-            # params = node.getValueList()
-            # if env.debug:
-            # print(f"# {dbug:<{env.debugindent*2}}OPERAND: {params}")
+                print(f"# {dbug:<{env.debugindent*2}}OPERATION: {node.getFormula()}")
             func = Operators[node.data.symbol]
-            # x = apply(func, [params, TokenType.unknown])
             x = func(node, env2)
             if env.debug:
-                print(f"# {dbug:<{env.debugindent*2}}RESULT: {x}")
+                if x is None:
+                    print(f"# {dbug:<{env.debugindent*2}}RESULT: None")
+                else:
+                    print(f"# {dbug:<{env.debugindent*2}}RESULT: {x.getValue() if type(x) is DataNode else x.getString()}")
             return x
-            # if x is None:
-            #     return x
-            # else:
-            #     match x[1]:
-            #         case TokenType.number:
-            #             return DataNode(x[1], str(x[0]), x[0])
-            #         case TokenType.constant | TokenType.quoted_text:
-            #             return DataNode(x[1], x[0], 0)
         return node
 
 
@@ -434,7 +417,7 @@ def func_debug(parentnode, env):
     return parentnode.next
 
 
-def func_defunc(parentnode, env):
+def func_func(parentnode, env):
     global Transformations
     Transformations.append(parentnode.next)
     return None
@@ -445,8 +428,12 @@ def func_if(node, env):
     b = False
     dat = TreeNode(serial)
     serial += 1
-    dat.data = copy.deepcopy(node.data)
-    dat = eval(dat)
+    try:
+        dat.data = copy.deepcopy(node.next.data)
+        dat = eval(dat, env)
+    except:
+        sys.exit(f"ERROR: if - missing operands in line {env.linenumber} {env.line}")
+
     if dat is None:
         b = False
     else:
@@ -462,21 +449,19 @@ def func_if(node, env):
                 else:
                     b = False
     if b:
-        if node.next:
-            return node.next
-        else:
-            return None
+        try:
+            node.next.next.next=None
+            return node.next.next
+        except:
+            sys.exit(f"ERROR: if - missing operands in line {env.linenumber} {env.line}")
     else:
-        if node.next:
-            if node.next.next:
-                return node.next.next
-            else:
-                return None
-        else:
-            return None
+        try:
+            return node.next.next.next
+        except:
+            sys.exit(f"ERROR: if - missing operands in line {env.linenumber} {env.line}")
 
 
-Functions = {"debug": func_debug, "func": func_defunc, "if": func_if}
+Functions = {"debug": func_debug, "func": func_func, "if": func_if}
 
 
 def op_print(node, env):
@@ -485,138 +470,224 @@ def op_print(node, env):
 
 
 def op_add(node, env):
-    if node.next:
-        a = node.next.data
-        if node.next.next:
-            b = node.next.next.data
-            if type(a) is DataNode and type(b) is DataNode:
-                if a.type == TokenType.number and b.type == TokenType.number:
-                    c = a.val + b.val
-                    return DataNode(TokenType.number, str(c), c)
-    sys.exit(f"ERROR: + - missing operands in line {env.linenumber} {env.line}")
+    try:
+        a=node.next.data 
+        if a.type==TokenType.number:
+            a=a.val
+        else:
+            a=env.vars[a.symbol][1]
+        b=node.next.next.data
+        if b.type==TokenType.number:
+            b=b.val
+        else:
+            b=env.vars[b.symbol][1]
+        c=a+b
+        return DataNode(TokenType.number, str(c), c)
+    except:
+        sys.exit(f"ERROR: + - missing operands in line {env.linenumber} {env.line}")
 
 
 def op_sub(node, env):
-    if node.next:
-        a = node.next.data
-        if node.next.next:
-            b = node.next.next.data
-            if type(a) is DataNode and type(b) is DataNode:
-                if a.type == TokenType.number and b.type == TokenType.number:
-                    c = a.val - b.val
-                    return DataNode(TokenType.number, str(c), c)
-    sys.exit(f"ERROR: - - missing operands in line {env.linenumber} {env.line}")
+    try:
+        a=node.next.data 
+        if a.type==TokenType.number:
+            a=a.val
+        else:
+            a=env.vars[a.symbol][1]
+        b=node.next.next.data
+        if b.type==TokenType.number:
+            b=b.val
+        else:
+            b=env.vars[b.symbol][1]
+        c=a-b
+        return DataNode(TokenType.number, str(c), c)
+    except:
+        sys.exit(f"ERROR: - - missing operands in line {env.linenumber} {env.line}")
 
 
 def op_mult(node, env):
-    if node.next:
-        a = node.next.data
-        if node.next.next:
-            b = node.next.next.data
-            if type(a) is DataNode and type(b) is DataNode:
-                if a.type == TokenType.number and b.type == TokenType.number:
-                    c = a.val * b.val
-                    return DataNode(TokenType.number, str(c), c)
-    sys.exit(f"ERROR: * - missing operands in line {env.linenumber} {env.line}")
+    try:
+        a=node.next.data 
+        if a.type==TokenType.number:
+            a=a.val
+        else:
+            a=env.vars[a.symbol][1]
+        b=node.next.next.data
+        if b.type==TokenType.number:
+            b=b.val
+        else:
+            b=env.vars[b.symbol][1]
+        c=a*b
+        return DataNode(TokenType.number, str(c), c)
+    except:
+        sys.exit(f"ERROR: * - missing operands in line {env.linenumber} {env.line}")
 
 
 def op_div(node, env):
-    if node.next:
-        a = node.next.data
-        if node.next.next:
-            b = node.next.next.data
-            if type(a) is DataNode and type(b) is DataNode:
-                if a.type == TokenType.number and b.type == TokenType.number:
-                    c = a.val / b.val
-                    return DataNode(TokenType.number, str(c), c)
-    sys.exit(f"ERROR: / - missing operands in line {env.linenumber} {env.line}")
+    try:
+        a=node.next.data 
+        if a.type==TokenType.number:
+            a=a.val
+        else:
+            a=env.vars[a.symbol][1]
+        b=node.next.next.data
+        if b.type==TokenType.number:
+            b=b.val
+        else:
+            b=env.vars[b.symbol][1]
+        c=a/b
+        return DataNode(TokenType.number, str(c), c)
+    except:
+        sys.exit(f"ERROR: / - missing operands in line {env.linenumber} {env.line}")
 
 
 def op_eq(node, env):
-    if node.next:
-        a = node.next.data
-        if node.next.next:
-            b = node.next.next.data
-            if type(a) is DataNode and type(b) is DataNode:
-                if a.type == TokenType.number and b.type == TokenType.number:
-                    if a.val == b.val:
-                        c = 1
-                    else:
-                        c = 0
-                    return DataNode(TokenType.number, str(c), c)
-    sys.exit(f"ERROR: = - missing operands in line {env.linenumber} {env.line}")
+    try:
+        a=node.next.data 
+        if a.type==TokenType.number:
+            a=a.val
+        else:
+            a=env.vars[a.symbol][1]
+        b=node.next.next.data
+        if b.type==TokenType.number:
+            b=b.val
+        else:
+            b=env.vars[b.symbol][1]
+        c=1 if a==b else 0
+        return DataNode(TokenType.number, str(c), c)
+    except:
+        sys.exit(f"ERROR: = - missing operands in line {env.linenumber} {env.line}")
 
 
 def op_lteq(node, env):
-    if node.next:
-        a = node.next.data
-        if node.next.next:
-            b = node.next.next.data
-            if type(a) is DataNode and type(b) is DataNode:
-                if a.type == TokenType.number and b.type == TokenType.number:
-                    if a.val <= b.val:
-                        c = 1
-                    else:
-                        c = 0
-                    return DataNode(TokenType.number, str(c), c)
-    sys.exit(f"ERROR: <= - missing operands in line {env.linenumber} {env.line}")
+    try:
+        a=node.next.data 
+        if a.type==TokenType.number:
+            a=a.val
+        else:
+            a=env.vars[a.symbol][1]
+        b=node.next.next.data
+        if b.type==TokenType.number:
+            b=b.val
+        else:
+            b=env.vars[b.symbol][1]
+        c=1 if a<=b else 0
+        return DataNode(TokenType.number, str(c), c)
+    except:
+        sys.exit(f"ERROR: <= - missing operands in line {env.linenumber} {env.line}")
 
 
 def op_gteq(node, env):
-    if node.next:
-        a = node.next.data
-        if node.next.next:
-            b = node.next.next.data
-            if type(a) is DataNode and type(b) is DataNode:
-                if a.type == TokenType.number and b.type == TokenType.number:
-                    if a.val >= b.val:
-                        c = 1
-                    else:
-                        c = 0
-                    return DataNode(TokenType.number, str(c), c)
-    sys.exit(f"ERROR: >= - missing operands in line {env.linenumber} {env.line}")
+    try:
+        a=node.next.data 
+        if a.type==TokenType.number:
+            a=a.val
+        else:
+            a=env.vars[a.symbol][1]
+        b=node.next.next.data
+        if b.type==TokenType.number:
+            b=b.val
+        else:
+            b=env.vars[b.symbol][1]
+        c=1 if a>=b else 0
+        return DataNode(TokenType.number, str(c), c)
+    except:
+        sys.exit(f"ERROR: >= - missing operands in line {env.linenumber} {env.line}")
 
 
 def op_lt(node, env):
-    if node.next:
-        a = node.next.data
-        if node.next.next:
-            b = node.next.next.data
-            if type(a) is DataNode and type(b) is DataNode:
-                if a.type == TokenType.number and b.type == TokenType.number:
-                    if a.val < b.val:
-                        c = 1
-                    else:
-                        c = 0
-                    return DataNode(TokenType.number, str(c), c)
-    sys.exit(f"ERROR: < - missing operands in line {env.linenumber} {env.line}")
+    try:
+        a=node.next.data 
+        if a.type==TokenType.number:
+            a=a.val
+        else:
+            a=env.vars[a.symbol][1]
+        b=node.next.next.data
+        if b.type==TokenType.number:
+            b=b.val
+        else:
+            b=env.vars[b.symbol][1]
+        c=1 if a<b else 0
+        return DataNode(TokenType.number, str(c), c)
+    except:
+        sys.exit(f"ERROR: < - missing operands in line {env.linenumber} {env.line}")
 
 
 def op_gt(node, env):
-    if node.next:
-        a = node.next.data
-        if node.next.next:
-            b = node.next.next.data
-            if type(a) is DataNode and type(b) is DataNode:
-                if a.type == TokenType.number and b.type == TokenType.number:
-                    if a.val > b.val:
-                        c = 1
-                    else:
-                        c = 0
-                    return DataNode(TokenType.number, str(c), c)
-    sys.exit(f"ERROR: > - missing operands in line {env.linenumber} {env.line}")
+    try:
+        a=node.next.data 
+        if a.type==TokenType.number:
+            a=a.val
+        else:
+            a=env.vars[a.symbol][1]
+        b=node.next.next.data
+        if b.type==TokenType.number:
+            b=b.val
+        else:
+            b=env.vars[b.symbol][1]
+        c=1 if a>b else 0
+        return DataNode(TokenType.number, str(c), c)
+    except:
+        sys.exit(f"ERROR: > - missing operands in line {env.linenumber} {env.line}")
 
 
 def op_concat(node, env):
-    if node.next:
-        a = node.next.data
+    try:
+        a=node.next.data 
+        if a.type==TokenType.string:
+            a=a.symbol
+        else:
+            a=env.vars[a.symbol][1]
+        b=node.next.next.data
+        if b.type==TokenType.string:
+            b=b.symbol
+        else:
+            b=env.vars[b.symbol][1]
+        c=a + ' ' + b
+        return DataNode(TokenType.string, c, 0)
+    except:
+        sys.exit(f"ERROR: concat - missing operands in line {env.linenumber} {env.line}")
+
+def op_setvar(node, env):
+    if type(node.next.data) is DataNode:
+        var=node.next.data.getValue()
         if node.next.next:
-            b = node.next.next.data
-            if type(a) is DataNode and type(b) is DataNode:
-                if a.type == TokenType.quoted_text and b.type == TokenType.quoted_text:
-                    c = a.symbol + " " + b.symbol
-                    return DataNode(TokenType.quoted_text, str(c), c)
-    sys.exit(f"ERROR: concat - missing operands in line {env.linenumber} {env.line}")
+            if type(node.next.next.data) is DataNode:
+                val=node.next.next.data.getValue()
+                typ=node.next.next.data.type
+            else:
+                val=node.next.next.data.getString()
+                typ=TokenType.string
+            env.vars[var]=[typ, val]
+        return DataNode(typ, val, val if typ==TokenType.number else 0)
+    sys.exit(f"ERROR: setvar - missing operands in line {env.linenumber} {env.line}")
+
+def op_getvar(node, env):
+    if type(node.next.data) is DataNode:
+        var=node.next.data.getValue()
+        val=env.vars[var]
+        return DataNode(val[0], val[1], val[1] if val[0]==TokenType.number else 0)
+    sys.exit(f"ERROR: getvar - missing operands in line {env.linenumber} {env.line}")
+
+def op_op(node, env):
+    try:
+        formula=node.next.data.symbol
+    except:    
+        sys.exit(f"ERROR: op - missing operands in line {env.linenumber} {env.line}")
+
+
+def op_loop(node, env):
+    try:
+        min=node.next.data.val
+        max=node.next.next.data.val
+        inc=node.next.next.next.data.val
+        repeat=node.next.next.next.next
+        while min<max:
+            result=eval(copy.deepcopy(repeat), env)
+            min+=inc
+        return None
+    except:
+        sys.exit(f"ERROR: loop - missing operands in line {env.linenumber} {env.line}")
 
 
 Operators = {
@@ -631,6 +702,10 @@ Operators = {
     ">": op_gt,
     "<": op_lt,
     "concat": op_concat,
+    "setvar": op_setvar,
+    "getvar": op_getvar,
+    "op": op_op,
+    "loop": op_loop,
 }
 
 
