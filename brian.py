@@ -15,6 +15,8 @@ class Environment:
         self.line = ""
         self.linenumber = 0
         self.vars={}
+        self.parent=None
+        self.glob=[]
 
 
 class TokenType(enum.Enum):
@@ -341,6 +343,8 @@ def eval(node, env):
             if node is None:
                 return None
     env2 = copy.deepcopy(env)
+    env2.parent=env
+    env2.vars={}
     dbug = " "
     if env.debug:
         print(f"# {dbug:<{env.debugindent*2}}NODE: {node.getFormula()}")
@@ -649,23 +653,48 @@ def op_concat(node, env):
         sys.exit(f"ERROR: concat - missing operands in line {env.linenumber} {env.line}")
 
 def op_setvar(node, env):
-    if type(node.next.data) is DataNode:
+    try:
         var=node.next.data.getValue()
-        if node.next.next:
-            if type(node.next.next.data) is DataNode:
-                val=node.next.next.data.getValue()
-                typ=node.next.next.data.type
-            else:
-                val=node.next.next.data.getString()
-                typ=TokenType.string
+        if type(node.next.next.data) is DataNode:
+            val=node.next.next.data.getValue()
+            typ=node.next.next.data.type
+        else:
+            val=node.next.next.data.getString()
+            typ=TokenType.string
+        if var in env.glob:
+            parent=env.parent
+            while parent:
+                if var in parent.vars:
+                    parent.vars[var]=val
+        else:
             env.vars[var]=[typ, val]
         return DataNode(typ, val, val if typ==TokenType.number else 0)
-    sys.exit(f"ERROR: setvar - missing operands in line {env.linenumber} {env.line}")
+    except:
+        sys.exit(f"ERROR: setvar - missing operands in line {env.linenumber} {env.line}")
+
+    # if type(node.next.data) is DataNode:
+    #     var=node.next.data.getValue()
+    #     if node.next.next:
+    #         if type(node.next.next.data) is DataNode:
+    #             val=node.next.next.data.getValue()
+    #             typ=node.next.next.data.type
+    #         else:
+    #             val=node.next.next.data.getString()
+    #             typ=TokenType.string
+    #         env.vars[var]=[typ, val]
+    #     return DataNode(typ, val, val if typ==TokenType.number else 0)
 
 def op_getvar(node, env):
     if type(node.next.data) is DataNode:
         var=node.next.data.getValue()
-        val=env.vars[var]
+        val=0
+        if var in env.glob:
+            parent=env.parent
+            while parent:
+                if var in parent.vars:
+                    val=parent.vars[var]
+        else:
+            val=env.vars[var]
         return DataNode(val[0], val[1], val[1] if val[0]==TokenType.number else 0)
     sys.exit(f"ERROR: getvar - missing operands in line {env.linenumber} {env.line}")
 
