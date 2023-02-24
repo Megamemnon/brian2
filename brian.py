@@ -497,7 +497,10 @@ Functions = {"debug": func_debug, "func": func_func, "if": func_if, "do": func_d
 
 
 def op_print(node, env):
-    print(f"{node.next.getString()}")
+    try:
+        print(f"{node.next.getString()}")
+    except:
+        sys.exit(f"ERROR: print - missing operands in line {env.linenumber} {env.line}")
     return None
 
 
