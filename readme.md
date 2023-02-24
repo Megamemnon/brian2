@@ -17,11 +17,7 @@ s_exp ::= '(' , function , { operand } , ')' | '(' , operator , { operand } , ')
 
 ### Functions vs Operators
 
-Operators are applied to a stack of terms and return a stack of terms while functions modify the abstract syntax tree.
-
-Operator example:  
-
->The **+** Constant is a Binary Operator which applies itself to the two top-most entries of the stack - summing them - and then places the resulting value on the top of the stack. During the Operater phase of Evaluation, Operators in the Abstract Syntax Tree is evaluated from each leaf node back up to the root so that all Operators 'down' the tree from the current Operator have already been Evaluated.
+Generally, Functions are applied in the order in which they occur while Operators are applied in reverse order. Both modify the abstract syntax tree, but Operators generally do this to 'return' a result while functions modify the AST for future processing by operators.
 
 Function example:
 
@@ -33,14 +29,19 @@ Function example:
 
 >During the Function phase of Evaluation, Functions in the Abstract Syntax Tree are evaluated from the root down to each leaf node so that all Functions can modify the lower nodes prior to those nodes being Evaluated. 
 
+Operator example:  
+
+>The **+** Constant is a Binary Operator which applies itself to two operands - summing them - and then replaces itself with the resulting value. During the Operater phase of Evaluation, Operators in the Abstract Syntax Tree is evaluated from each leaf node back up to the root so that all Operators 'down' the tree from the current Operator have already been Evaluated.
+
+
 ## Built-in Functions and Operators
 
 ### concat
-Operator - [quoted_text quoted_text | quoted_text]  
-A space is inserted between the two quoted_text operands
+Operator - [string string | string]  
+A space is inserted between the two string operands
 
 ### debug
-Function - (debug true|false)
+Function - (debug sexp)
 Enables debugging in the current environment.
 
 ### func
@@ -49,10 +50,6 @@ Adds a function to the dictionary. If search_node is found, variables in search_
 
 ### if
 Function - (if condition result_if_true result_if_false)
-
-### op
-Operator - (op quoted_string)
-quoted_string is the new operator's symbol and a space-delimited list of operators. A new Operator is defined to be the provided symbol and execution is successive application of the identified list of operators.
 
 ### print
 Operator - [any | ]
@@ -70,3 +67,18 @@ Operator - [number number | result]
 ### /
 Operator - [number number | result]
 
+### ==  
+Operator - [number number | boolean]  
+Note that boolean is simply a number, 0 or 1. 1 represents True and 0 False. When evaluating numbers as a boolean, any non-zero value will evaluate to True.
+
+### >=  
+Operator - [number number | boolean]
+
+### <=  
+Operator - [number number | boolean]
+
+### >  
+Operator - [number number | boolean]
+
+### <  
+Operator - [number number | boolean]
