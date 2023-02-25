@@ -346,6 +346,9 @@ def eval(node, env):
             node = func(node, env)
             if node is None:
                 return None
+        if type(node.data) is DataNode:
+            if node.data.symbol == "'":
+                return node.next
     if env.share:
         env2=env
     else:
@@ -374,6 +377,7 @@ def eval(node, env):
                     )
             return x
         return node
+
 
 
 def runProgram(program, env):
@@ -491,8 +495,28 @@ def func_do(node, env):
     env.share=True
     return node.next
 
+# def func_parse(node, env):
+#     global serial
+#     source=node.next.data.symbol
+#     rest=node.next.next
+#     newnode=TreeNode(serial)
+#     serial+=1
+#     newnode.data=DataNode(TokenType.constant, "'", 0)
+#     newnode.next=parse(tokenize(source)).data
+#     n=newnode
+#     while n.next:
+#         n=n.next
+#     n.next=rest 
+#     return newnode   
 
-Functions = {"debug": func_debug, "func": func_func, "if": func_if, "do": func_do}
+
+Functions = {
+    "debug": func_debug, 
+    "func": func_func, 
+    "if": func_if, 
+    "do": func_do,
+    # "fparse":func_parse,
+}
 
 
 def op_print(node, env):
@@ -757,6 +781,26 @@ def op_include(node, env):
     except:
         sys.exit(f"ERROR: include - missing operands in line {env.linenumber} {env.line}")
 
+# def op_parse(node, env):
+#     source=node.next.data.symbol
+#     rest=node.next.next
+#     newnode=parse(tokenize(source))
+#     n=newnode
+#     while n.next:
+#         n=n.next
+#     n.next=rest 
+#     return newnode   
+
+def op_evalstring(node, env):
+    try:
+        source=getVarVal(node.next.data.symbol, env)[1]
+    except:
+        source=node.next.data.symbol
+    try:
+        eval(parse(tokenize(source)), env)
+        return None
+    except:
+        sys.exit(f"ERROR: eval - cannot evaluate operands in line {env.linenumber} {env.line}")
 
 Operators = {
     "print": op_print,
@@ -776,6 +820,8 @@ Operators = {
     "op": op_op,
     "loop": op_loop,
     "include": op_include,
+    # "parse": op_parse,
+    "eval": op_evalstring,
 }
 
 
