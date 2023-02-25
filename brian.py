@@ -376,9 +376,8 @@ def eval(node, env):
         return node
 
 
-def runProgram(program):
+def runProgram(program, env):
     global Transformations
-    env = Environment()
     i = 0
     while i < len(program):
         line = program[i]
@@ -750,6 +749,15 @@ def op_loop(node, env):
     except:
         sys.exit(f"ERROR: loop - missing operands in line {env.linenumber} {env.line}")
 
+def op_include(node, env):
+    try:
+        incfile=node.next.data.symbol
+        program=loadFile(incfile)
+        runProgram(program, env)
+    except:
+        sys.exit(f"ERROR: include - missing operands in line {env.linenumber} {env.line}")
+
+
 Operators = {
     "print": op_print,
     "+": op_add,
@@ -761,12 +769,13 @@ Operators = {
     "<=": op_lteq,
     ">": op_gt,
     "<": op_lt,
-    "&": op_concat,
+    "$+": op_concat,
     "global": op_global,
-    "setvar": op_setvar,
-    "getvar": op_getvar,
+    "!": op_setvar,
+    "@": op_getvar,
     "op": op_op,
     "loop": op_loop,
+    "include": op_include,
 }
 
 
@@ -776,7 +785,7 @@ def main():
         print(f"usage: {sys.argv[0]} program")
         sys.exit(1)
     program = loadFile(sys.argv[1])
-    runProgram(program)
+    runProgram(program, Environment())
 
 
 if __name__ == "__main__":
