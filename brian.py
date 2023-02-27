@@ -410,49 +410,59 @@ def eval(node, env):
             return x
         return node
 
+def transform(node, env):
+    p=node
+    if p is not None:
+        changed = True
+        while changed:
+            changed = False
+            for t in Transformations:
+                l = t.data
+                r = t.next.data
+                res = p.resolve(l)
+                if res is not None:
+                    for nu in res:
+                        rc = copy.deepcopy(r)
+                        rcformula = rc.getFormula()
+                        for u in nu[1]:
+                            rc.applyUnifier(u)
+                        rc2formula = rc.getFormula()
+                        if rcformula != rc2formula:
+                            changed = True
+                            if env.debug:
+                                print(f"# (xform {t.getFormula})")
+                                print(f"# Program Line {p.getFormula()}")
+                                print(f"# Matched Node {nu[0].getFormula()}")
+                                print(f"# Transformed Node {rc2formula}")
+                            if nu[0].id == p.id:
+                                p = rc
+                            else:
+                                p.replaceNode(nu[0], rc)
+    return p
+
 
 
 def runProgram(program, env):
     global Transformations
     i = 0
     while i < len(program):
-        line = program[i]
-        llist = line.split()
-        while llist[-1] == "-":
-            line = " ".join(llist[:-1])
-            i += 1
-            line += " " + program[i]
+        if type(program) is list:
+            line = program[i]
             llist = line.split()
+            while llist[-1] == "-":
+                line = " ".join(llist[:-1])
+                i += 1
+                line += " " + program[i]
+                llist = line.split()
+        else:
+            line=program
+            i=len(program)
         t = tokenize(line)
         p = parse(t)
         if p is not None:
-            changed = True
-            while changed:
-                changed = False
-                for t in Transformations:
-                    l = t.data
-                    r = t.next.data
-                    res = p.resolve(l)
-                    if res is not None:
-                        for nu in res:
-                            rc = copy.deepcopy(r)
-                            rcformula = rc.getFormula()
-                            for u in nu[1]:
-                                rc.applyUnifier(u)
-                            rc2formula = rc.getFormula()
-                            if rcformula != rc2formula:
-                                changed = True
-                                if env.debug:
-                                    print(f"# (xform {t.getFormula})")
-                                    print(f"# Program Line {p.getFormula()}")
-                                    print(f"# Matched Node {nu[0].getFormula()}")
-                                    print(f"# Transformed Node {rc2formula}")
-                                if nu[0].id == p.id:
-                                    p = rc
-                                else:
-                                    p.replaceNode(nu[0], rc)
+            p=transform(p, env)
             env.line = line
-            env.linenumber = 1
+            env.linenumber = i
             eval(p, env)
         i += 1
 
@@ -531,6 +541,7 @@ def func_parse(node, env):
     source=node.next.data.symbol
     rest=node.next.next
     newnode=parse(tokenize(source)).data
+    newnode=transform(newnode, env)
     n=newnode
     while n.next:
         n=n.next
@@ -841,7 +852,7 @@ def op_eval(node, env):
     except:
         source=node.next.data.symbol
     try:
-        eval(parse(tokenize(source)), env)
+        runProgram(source, env)
         return None
     except:
         sys.exit(f"ERROR: eval - cannot evaluate operands in line {env.linenumber} {env.line}")
