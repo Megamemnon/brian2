@@ -78,6 +78,21 @@ class TreeNode:
             s += self.next.getString()
         return s
 
+    def getNBString(self):
+        s = ""
+        if type(self.data) is TreeNode:
+            s += self.data.getNBString()
+        elif type(self.data) is DataNode:
+            if self.data.type==TokenType.number:
+                s+=str(self.data.symbol)
+            else:
+                s += self.data.symbol
+        else:
+            pass
+        if self.next is not None:
+            s += self.next.getNBString()
+        return s
+
     def getValue(self):
         if type(self.data) is DataNode:
             return self.data.getValue()
@@ -247,7 +262,22 @@ def tokenize(formula):
                         f"Tokenization Error: End of quoted text not found in {formula}"
                     )
                 c = formula[index]
-                word += c
+                nc=0
+                if index+1<len(formula):
+                    nc=formula[index+1]
+                else:
+                    sys.exit(
+                        f"Tokenization Error: End of quoted text not found in {formula}"
+                    )
+                if c=='\\' and nc=='"':
+                    word+='"'
+                    index+=1
+                    if index>=len(formula):
+                        sys.exit(
+                            f"Tokenization Error: End of quoted text not found in {formula}"
+                        )
+                else:
+                    word += c
             word = word[:-1]
             token = DataNode(TokenType.string, word, 0)
             tokens.append(token)
@@ -346,6 +376,8 @@ def eval(node, env):
             node = func(node, env)
             if node is None:
                 return None
+            while type(node.data) is TreeNode and node.next is None:
+                node=node.data
         if type(node.data) is DataNode:
             if node.data.symbol == "'":
                 return node.next
@@ -495,19 +527,15 @@ def func_do(node, env):
     env.share=True
     return node.next
 
-# def func_parse(node, env):
-#     global serial
-#     source=node.next.data.symbol
-#     rest=node.next.next
-#     newnode=TreeNode(serial)
-#     serial+=1
-#     newnode.data=DataNode(TokenType.constant, "'", 0)
-#     newnode.next=parse(tokenize(source)).data
-#     n=newnode
-#     while n.next:
-#         n=n.next
-#     n.next=rest 
-#     return newnode   
+def func_parse(node, env):
+    source=node.next.data.symbol
+    rest=node.next.next
+    newnode=parse(tokenize(source)).data
+    n=newnode
+    while n.next:
+        n=n.next
+    n.next=rest 
+    return newnode   
 
 
 Functions = {
@@ -515,16 +543,34 @@ Functions = {
     "func": func_func, 
     "if": func_if, 
     "do": func_do,
-    # "fparse":func_parse,
+    "parse":func_parse,
 }
 
 
 def op_print(node, env):
     try:
-        print(f"{node.next.getString()}")
+        s=node.next.getNBString().encode('latin-1','backslashreplace').decode('unicode-escape')
+        print(s,end='')
     except:
         sys.exit(f"ERROR: print - missing operands in line {env.linenumber} {env.line}")
     return None
+
+def op_newline(node, env):
+    print('')
+
+def op_number(node, env):
+    try:
+        if type(node.next.data) is DataNode:
+            if node.next.data.type!=TokenType.number:
+                node.next.data.type=TokenType.number
+                try:
+                    node.next.data.val=float(node.next.data.symbol)
+                except:
+                    node.next.data.val=0
+                    node.next.data.symbol='0'
+        return node.next.data
+    except:
+        sys.exit(f"ERROR: # - missing operands in line {env.linenumber} {env.line}")
 
 
 def op_add(node, env):
@@ -689,24 +735,31 @@ def op_gt(node, env):
         sys.exit(f"ERROR: > - missing operands in line {env.linenumber} {env.line}")
 
 
-def op_concat(node, env):
+def op_string(node, env):
     try:
-        a = node.next.data
-        if a.type == TokenType.string:
-            a = a.symbol
-        else:
-            a = getVarVal(a.symbol, env)[1]
-        b = node.next.next.data
-        if b.type == TokenType.string:
-            b = b.symbol
-        else:
-            b = getVarVal(b.symbol, env)[1]
-        c = a + " " + b
+        c=node.next.getString()
         return DataNode(TokenType.string, c, 0)
     except:
         sys.exit(
-            f"ERROR: concat - missing operands in line {env.linenumber} {env.line}"
+            f"ERROR: $_ - missing operands in line {env.linenumber} {env.line}"
         )
+
+def op_nbstring(node, env):
+    try:
+        c=node.next.getNBString()
+        return DataNode(TokenType.string, c, 0)
+    except:
+        sys.exit(
+            f"ERROR: $ - missing operands in line {env.linenumber} {env.line}"
+        )
+
+def op_input(node,env):
+    if node.next:
+        c=input(node.next.getString())
+    else:
+        c=input()
+    d=DataNode(TokenType.string, c, 0)
+    return d
 
 def op_global(node, env):
     try:
@@ -780,18 +833,9 @@ def op_include(node, env):
         runProgram(program, env)
     except:
         sys.exit(f"ERROR: include - missing operands in line {env.linenumber} {env.line}")
+ 
 
-# def op_parse(node, env):
-#     source=node.next.data.symbol
-#     rest=node.next.next
-#     newnode=parse(tokenize(source))
-#     n=newnode
-#     while n.next:
-#         n=n.next
-#     n.next=rest 
-#     return newnode   
-
-def op_evalstring(node, env):
+def op_eval(node, env):
     try:
         source=getVarVal(node.next.data.symbol, env)[1]
     except:
@@ -804,6 +848,8 @@ def op_evalstring(node, env):
 
 Operators = {
     "print": op_print,
+    "nl": op_newline,
+    "#": op_number,
     "+": op_add,
     "-": op_sub,
     "*": op_mult,
@@ -813,19 +859,22 @@ Operators = {
     "<=": op_lteq,
     ">": op_gt,
     "<": op_lt,
-    "$+": op_concat,
+    "$_": op_string,
+    "$": op_nbstring,
+    "input": op_input,
     "global": op_global,
     "!": op_setvar,
     "@": op_getvar,
     "op": op_op,
     "loop": op_loop,
     "include": op_include,
-    # "parse": op_parse,
-    "eval": op_evalstring,
+    "eval": op_eval,
 }
 
 
 def main():
+    s='\033[37m'
+    print(s, end='')
     print(f"Brian v0.2 Copyright (c) 2023 Brian O'Dell")
     if len(sys.argv) < 2:
         print(f"usage: {sys.argv[0]} program")

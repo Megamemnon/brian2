@@ -1,6 +1,7 @@
+(print "\x1b[32m")
 (func (++ A B C) (+ A (+ B C)) )
 (print (++ 1 2 3))
-(print ($+ "Concatenate" "This!"))
+(print ($_ "Concatenate" "This!"))(nl)
 (if (> 4 2) (print 1) (print 0))
 (global x)
 (! x 42)
