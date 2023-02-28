@@ -1,0 +1,4 @@
+(include "stdlib.bsx")
+(ttyHome)(ttyClear)(ttyGreen)
+(print "bsx editor")(nl)
+(ttyWhite)

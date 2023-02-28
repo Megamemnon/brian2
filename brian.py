@@ -183,10 +183,10 @@ class TreeNode:
             if u is not None:
                 resolution.extend(u)
         if self.next:
-            if node.next:
-                u = self.next.resolve(node)
-                if u is not None:
-                    resolution.extend(u)
+            # if node.next:
+            u = self.next.resolve(node)
+            if u is not None:
+                resolution.extend(u)
         if resolution == []:
             return None
         return resolution
@@ -427,17 +427,17 @@ def transform(node, env):
                         for u in nu[1]:
                             rc.applyUnifier(u)
                         rc2formula = rc.getFormula()
-                        if rcformula != rc2formula:
-                            changed = True
-                            if env.debug:
-                                print(f"# (xform {t.getFormula})")
-                                print(f"# Program Line {p.getFormula()}")
-                                print(f"# Matched Node {nu[0].getFormula()}")
-                                print(f"# Transformed Node {rc2formula}")
-                            if nu[0].id == p.id:
-                                p = rc
-                            else:
-                                p.replaceNode(nu[0], rc)
+                        # if rcformula != rc2formula:
+                        changed = True
+                        if env.debug:
+                            print(f"# (xform {t.getFormula})")
+                            print(f"# Program Line {p.getFormula()}")
+                            print(f"# Matched Node {nu[0].getFormula()}")
+                            print(f"# Transformed Node {rc2formula}")
+                        if nu[0].id == p.id:
+                            p = rc
+                        else:
+                            p.replaceNode(nu[0], rc)
     return p
 
 
