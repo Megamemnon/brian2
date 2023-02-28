@@ -2,6 +2,7 @@ import enum
 import sys
 import types
 import copy
+from readchar import readchar, readkey, key
 
 Tokens = []
 serial = 0

@@ -5,10 +5,10 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Python: Brian",
+      "name": "Python: bsx",
       "type": "python",
       "request": "launch",
-      "program": "${workspaceFolder}/brian.py",
+      "program": "${workspaceFolder}/bsx.py",
       "args": ["editor.bsx"],
       "console": "integratedTerminal",
       "justMyCode": true
