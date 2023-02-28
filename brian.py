@@ -27,7 +27,7 @@ class TokenType(enum.Enum):
     number = 4
     string = 5
     unknown = 6
-    # quote=7
+    array=7
 
 
 class DataNode:
@@ -78,10 +78,10 @@ class TreeNode:
             s += self.next.getString()
         return s
 
-    def getNBString(self):
+    def getNSString(self):
         s = ""
         if type(self.data) is TreeNode:
-            s += self.data.getNBString()
+            s += self.data.getNSString()
         elif type(self.data) is DataNode:
             if self.data.type==TokenType.number:
                 s+=str(self.data.symbol)
@@ -90,7 +90,7 @@ class TreeNode:
         else:
             pass
         if self.next is not None:
-            s += self.next.getNBString()
+            s += self.next.getNSString()
         return s
 
     def getValue(self):
@@ -462,7 +462,7 @@ def runProgram(program, env):
         if p is not None:
             p=transform(p, env)
             env.line = line
-            env.linenumber = i
+            env.linenumber = i+1
             eval(p, env)
         i += 1
 
@@ -474,12 +474,48 @@ def getVarVal(var, env):
         p=env.parent
         while p:
             if var in p.vars:
-                return p.vars[var]
+                if p.vars[var][0] == TokenType.array:
+                    sys.exit(f"ERROR: List Var {var} accesses as Scalar in line {env.linenumber} {env.line}")
+                else:
+                    return p.vars[var]
             p=p.parent
     else:
         if var in env.vars:
-            return env.vars[var]
+                if env.vars[var][0] == TokenType.array:
+                    sys.exit(f"ERROR: List Var {var} accesses as Scalar in line {env.linenumber} {env.line}")
+                else:
+                    return env.vars[var]
     sys.exit(f"ERROR: Variable not defined but referenced in line {env.linenumber} {env.line}")
+
+def getList(var, env):
+    try:
+        if var in env.glob:
+            p=env.parent
+            while p:
+                if var in p.vars:
+                    return p.vars[var]
+                p=p.parent
+        else:
+            if var in env.vars:
+                return env.vars[var]
+        raise Exception()
+    except Exception:
+        sys.exit(f"ERROR: List not defined but referenced in line {env.linenumber} {env.line}")
+
+def setList(var, val, env):
+    if var in env.glob:
+        p=env.parent
+        while p:
+            if var in p.vars:
+                p.vars[var]=val
+                return
+            p=p.parent
+    else:
+        if var in env.vars:
+            env.vars[var]=val
+            return
+    sys.exit(f"ERROR: List not defined but referenced in line {env.linenumber} {env.line}")
+
 
 def func_debug(parentnode, env):
     env.debug = True
@@ -560,7 +596,7 @@ Functions = {
 
 def op_print(node, env):
     try:
-        s=node.next.getNBString().encode('latin-1','backslashreplace').decode('unicode-escape')
+        s=node.next.getNSString().encode('latin-1','backslashreplace').decode('unicode-escape')
         print(s,end='')
     except:
         sys.exit(f"ERROR: print - missing operands in line {env.linenumber} {env.line}")
@@ -757,7 +793,7 @@ def op_string(node, env):
 
 def op_nbstring(node, env):
     try:
-        c=node.next.getNBString()
+        c=node.next.getNSString()
         return DataNode(TokenType.string, c, 0)
     except:
         sys.exit(
@@ -808,12 +844,106 @@ def op_setvar(node, env):
             f"ERROR: setvar - missing operands in line {env.linenumber} {env.line}"
         )
 
-
 def op_getvar(node, env):
     if type(node.next.data) is DataNode:
         val = getVarVal(node.next.data.getValue(), env)
         return DataNode(val[0], val[1], val[1] if val[0] == TokenType.number else 0)
     sys.exit(f"ERROR: getvar - missing operands in line {env.linenumber} {env.line}")
+
+    
+def op_createlist(node, env):
+    try:
+        var=node.next.data.getValue()
+        val=[]
+        n=node.next.next
+        while n:
+            val.append(n.getNSString())
+            n=n.next
+        val=[TokenType.array, val]
+        if var in env.glob:
+            p = env.parent
+            while p.parent:
+                p=p.parent
+            p.vars[var] = val
+        else:
+            env.vars[var] = val
+        return None
+    except:
+        sys.exit(
+            f"ERROR: [] - missing operands in line {env.linenumber} {env.line}"
+        )
+
+def op_getindexlist(node, env):
+    try:
+        var=node.next.data.getValue()
+        index=int(node.next.next.data.getValue())
+    except:
+        sys.exit(
+            f"ERROR: [@] - missing operands in line {env.linenumber} {env.line}"
+        )
+    val=getList(var, env)[index]
+    return DataNode(TokenType.string, val, 0)
+
+def op_setindexlist(node, env):
+    try:
+        var=node.next.data.getValue()
+        index=int(node.next.next.data.getValue())
+        newval=node.next.next.next.data.getValue()
+        val=getList(var, env)
+        if index>=len(val) or index<0 or len(val)==0:
+            val.append(newval)
+        else:
+            val[index]=newval
+        setList(var, val, env)
+        return None
+    except:
+        sys.exit(
+            f"ERROR: [!] - missing operands in line {env.linenumber} {env.line}"
+        )
+
+def op_delindexlist(node, env):
+    try:
+        var=node.next.data.getValue()
+        index=int(node.next.next.data.getValue())
+        val=getList(var, env)
+        if index<len(val):
+            val.pop(index)
+        else:
+            return None
+        setList(var, val, env)
+        return None
+    except:
+        sys.exit(
+            f"ERROR: [-] - missing operands in line {env.linenumber} {env.line}"
+        )
+
+
+def op_lenlist(node, env):
+    try:
+        var=node.next.data.getValue()
+        val=getList(var, env)
+        return DataNode(TokenType.number, '', len(val))
+    except:
+        sys.exit(
+            f"ERROR: [#] - missing operands in line {env.linenumber} {env.line}"
+        )
+
+
+def op_delvar(node, env):
+    try:
+        var=node.next.data.getValue()
+        x=env
+        while x:
+            if var in x.vars:
+                x.vars.pop(var)
+            if var in x.glob:
+                x.glob.remove(var)
+            x=x.parent
+        return None
+    except:
+        sys.exit(
+            f"ERROR: del - missing operands in line {env.linenumber} {env.line}"
+        )
 
 
 def op_op(node, env):
@@ -837,6 +967,7 @@ def op_loop(node, env):
     except:
         sys.exit(f"ERROR: loop - missing operands in line {env.linenumber} {env.line}")
 
+
 def op_include(node, env):
     try:
         incfile=node.next.data.symbol
@@ -857,6 +988,7 @@ def op_eval(node, env):
     except:
         sys.exit(f"ERROR: eval - cannot evaluate operands in line {env.linenumber} {env.line}")
 
+
 Operators = {
     "print": op_print,
     "nl": op_newline,
@@ -876,6 +1008,12 @@ Operators = {
     "global": op_global,
     "!": op_setvar,
     "@": op_getvar,
+    "[]": op_createlist,
+    "[!]": op_setindexlist,
+    "[@]": op_getindexlist,
+    "[-]": op_delindexlist,
+    "[#]": op_lenlist,
+    "del": op_delvar,
     "op": op_op,
     "loop": op_loop,
     "include": op_include,
