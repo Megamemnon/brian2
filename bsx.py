@@ -2,6 +2,7 @@ import enum
 import sys
 import types
 import copy
+import os
 from readchar import readchar, readkey, key
 
 Tokens = []
@@ -1021,6 +1022,91 @@ Operators = {
     "eval": op_eval,
 }
 
+# ANSI stuff
+
+def setEcho(enable):
+    if enable:
+        os.system('stty echo')
+    else:
+        os.system('stty -echo')
+
+class Screen():
+    def __init__(self, x, y):
+        self.reset(self, x, y)
+
+    def reset(self, x, y):
+        s=os.get_terminal_size()
+        self.lines=s.lines
+        self.columns=s.columns
+        self.x=x
+        self.y=y
+        self.top=0
+        self.bottom=self.lines
+        self.right=self.columns
+        self.left=0
+
+    def setBounds(self, top, bottom, right, left):
+        self.top=top
+        self.bottom=bottom
+        self.right=right
+        self.left=left  
+
+    def setCursor(self):
+        print( '\\x1b[{self.y};{self.x}H')
+
+    def showCursor(self):
+        self.print(chr(177))
+        self.backup
+
+    def hideCursor(self):
+        print(' ')
+        self.backup
+
+    def print(self, c):
+        self.hideCursor
+        print(c, end='')
+        self.advance()
+        self.showCursor()
+
+    def advance(self):
+        if self.x<self.right:
+            self.x+=1
+        else:
+            self.x=self.left
+            if self.y<self.bottom:
+                self.y+=1
+            else:
+                # scroll down
+                pass
+        self.setCursor()
+    
+    def backup(self):
+        if self.x>self.left:
+            self.x-=1
+        else:
+            self.x=self.right
+            if self.y>self.top:
+                self.y-=1
+            else:
+                # scroll up
+                pass
+        self.setCursor()
+
+    def getKey(self):
+        return readkey()
+    
+    def printChar(self, c):
+        print(c,end='')
+
+    def processKey(self):
+        k=self.getKey()
+        match k:
+            case key.BACKSPACE:
+                self.backup()
+                self.printChar(' ')
+                self.backup()
+            case _:
+                self.print(k)
 
 def main():
     s='\033[37m'
