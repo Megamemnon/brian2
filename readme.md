@@ -15,6 +15,8 @@ operand ::= quoted_string | number | constant | variable | s_exp;
 s_exp ::= '(' , function , { operand } , ')' | '(' , operator , { operand } , ')';  
 </code>  
 
+There are three data types in bsx: Numbers, Strings, and Lists (of Strings). Numbers are floating point, not efficient but more useful.
+
 ## Language Interpretation
 The reference interpreter is written in Python and interprets bsx source code in text form as follows:
 
