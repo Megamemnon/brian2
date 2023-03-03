@@ -101,9 +101,9 @@ Prints the entire stack to standard out.
 Operator - [string | ]
 Requires a List as input. This Operator invokes seditor (Copyright (c) 2015 Paul Sokolovsky and distributed under the MIT license) with the contents of the named List. The List is updated with the contents of the editor when seditor quits (use CTRL-C to quit seditor).  
 
-### #
+### '#'
 Operator - [any | number]  
-Converts a single data node to a number, even if that means the number 0 (because it wasn't a legitimate number).  
+This Operator does not include the single quotes; it's simply #. Converts a single data node to a number, even if that means the number 0 (because it wasn't a legitimate number).  
 
 ### +
 Operator - [number number | number]  
