@@ -99,7 +99,7 @@ Prints the entire stack to standard out.
 
 ### seditor
 Operator - [string | ]
-Requires a List as input. This Operator invokes seditor (Copyright (c) 2015 Paul Sokolovsky and distributed under the MIT license) with the contents of the named List. The List is updated with the contents of the editor when seditor quits (use CTRL-C to quit seditor).
+Requires a List as input. This Operator invokes seditor (Copyright (c) 2015 Paul Sokolovsky and distributed under the MIT license) with the contents of the named List. The List is updated with the contents of the editor when seditor quits (use CTRL-C to quit seditor).  
 
 ### #
 Operator - [any | number]  
