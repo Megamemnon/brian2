@@ -97,6 +97,10 @@ Tokenizes, Parses, and Transforms the source code, then replaces its node in the
 Operator - [any | ]  
 Prints the entire stack to standard out.  
 
+### seditor
+Operator - [string | ]
+Requires a List as input. This Operator invokes seditor (Copyright (c) 2015 Paul Sokolovsky and distributed under the MIT license) with the contents of the named List. The List is updated with the contents of the editor when seditor quits (use CTRL-C to quit seditor).
+
 ### #
 Operator - [any | number]  
 Converts a single data node to a number, even if that means the number 0 (because it wasn't a legitimate number).  
@@ -148,6 +152,10 @@ Gets value of a variable.
 ### []
 Operator - [string string | ]  
 Creates an List variable (named with first string) with a single element (second string).  
+
+### []$
+Operator - [string | string]
+Requires the name of a List and returns all items in the list joined as a string with a delimiter of '\r\n'
 
 ### [!]
 Operator - [string number string | ]  

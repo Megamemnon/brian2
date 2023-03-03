@@ -2,8 +2,8 @@ import enum
 import sys
 import types
 import copy
-import os
-from readchar import readchar, readkey, key
+import seditor
+
 
 Tokens = []
 serial = 0
@@ -477,14 +477,14 @@ def getVarVal(var, env):
         while p:
             if var in p.vars:
                 if p.vars[var][0] == TokenType.array:
-                    sys.exit(f"ERROR: List Var {var} accesses as Scalar in line {env.linenumber} {env.line}")
+                    sys.exit(f"ERROR: List Var {var} accessed as Scalar in line {env.linenumber} {env.line}")
                 else:
                     return p.vars[var]
             p=p.parent
     else:
         if var in env.vars:
                 if env.vars[var][0] == TokenType.array:
-                    sys.exit(f"ERROR: List Var {var} accesses as Scalar in line {env.linenumber} {env.line}")
+                    sys.exit(f"ERROR: List Var {var} accessed as Scalar in line {env.linenumber} {env.line}")
                 else:
                     return env.vars[var]
     sys.exit(f"ERROR: Variable not defined but referenced in line {env.linenumber} {env.line}")
@@ -883,8 +883,22 @@ def op_getindexlist(node, env):
         sys.exit(
             f"ERROR: [@] - missing operands in line {env.linenumber} {env.line}"
         )
-    val=getList(var, env)[index]
+    val=getList(var, env)[1][index]
     return DataNode(TokenType.string, val, 0)
+
+
+
+def op_getlistasstring(node, env):
+    try:
+        var=node.next.data.getValue()
+    except:
+        sys.exit(
+            f"ERROR: [@] - missing operands in line {env.linenumber} {env.line}"
+        )
+    val=getList(var, env)[1]
+    content='\r\n'.join(val)
+    return DataNode(TokenType.string, content, 0)
+
 
 def op_setindexlist(node, env):
     try:
@@ -892,10 +906,10 @@ def op_setindexlist(node, env):
         index=int(node.next.next.data.getValue())
         newval=node.next.next.next.data.getValue()
         val=getList(var, env)
-        if index>=len(val) or index<0 or len(val)==0:
-            val.append(newval)
+        if index>=len(val[1]) or index<0 or len(val[1])==0:
+            val[1].append(newval)
         else:
-            val[index]=newval
+            val[1][index]=newval
         setList(var, val, env)
         return None
     except:
@@ -909,7 +923,7 @@ def op_delindexlist(node, env):
         index=int(node.next.next.data.getValue())
         val=getList(var, env)
         if index<len(val):
-            val.pop(index)
+            val[1].pop(index)
         else:
             return None
         setList(var, val, env)
@@ -924,7 +938,7 @@ def op_lenlist(node, env):
     try:
         var=node.next.data.getValue()
         val=getList(var, env)
-        return DataNode(TokenType.number, '', len(val))
+        return DataNode(TokenType.number, '', len(val[1]))
     except:
         sys.exit(
             f"ERROR: [#] - missing operands in line {env.linenumber} {env.line}"
@@ -990,6 +1004,23 @@ def op_eval(node, env):
     except:
         sys.exit(f"ERROR: eval - cannot evaluate operands in line {env.linenumber} {env.line}")
 
+def op_seditor(node, env):
+    try:
+        var=node.next.data.getValue()
+        val=getList(var, env)
+        content=val[1]
+        e=seditor.Editor()
+        e.init_tty()
+        e.set_lines(content)
+        e.loop()
+        e.deinit_tty()
+        content=e.content
+        val[1]=content
+        setList(var, val, env)
+        return None
+    except:
+        sys.exit(f"ERROR: seditor - cannot evaluate operands in line {env.linenumber} {env.line}")
+
 
 Operators = {
     "print": op_print,
@@ -1011,6 +1042,7 @@ Operators = {
     "!": op_setvar,
     "@": op_getvar,
     "[]": op_createlist,
+    "[]$": op_getlistasstring,
     "[!]": op_setindexlist,
     "[@]": op_getindexlist,
     "[-]": op_delindexlist,
@@ -1020,93 +1052,8 @@ Operators = {
     "loop": op_loop,
     "include": op_include,
     "eval": op_eval,
+    "seditor": op_seditor,
 }
-
-# ANSI stuff
-
-def setEcho(enable):
-    if enable:
-        os.system('stty echo')
-    else:
-        os.system('stty -echo')
-
-class Screen():
-    def __init__(self, x, y):
-        self.reset(self, x, y)
-
-    def reset(self, x, y):
-        s=os.get_terminal_size()
-        self.lines=s.lines
-        self.columns=s.columns
-        self.x=x
-        self.y=y
-        self.top=0
-        self.bottom=self.lines
-        self.right=self.columns
-        self.left=0
-
-    def setBounds(self, top, bottom, right, left):
-        self.top=top
-        self.bottom=bottom
-        self.right=right
-        self.left=left  
-
-    def setCursor(self):
-        print( '\\x1b[{self.y};{self.x}H')
-
-    def showCursor(self):
-        self.print(chr(177))
-        self.backup
-
-    def hideCursor(self):
-        print(' ')
-        self.backup
-
-    def print(self, c):
-        self.hideCursor
-        print(c, end='')
-        self.advance()
-        self.showCursor()
-
-    def advance(self):
-        if self.x<self.right:
-            self.x+=1
-        else:
-            self.x=self.left
-            if self.y<self.bottom:
-                self.y+=1
-            else:
-                # scroll down
-                pass
-        self.setCursor()
-    
-    def backup(self):
-        if self.x>self.left:
-            self.x-=1
-        else:
-            self.x=self.right
-            if self.y>self.top:
-                self.y-=1
-            else:
-                # scroll up
-                pass
-        self.setCursor()
-
-    def getKey(self):
-        return readkey()
-    
-    def printChar(self, c):
-        print(c,end='')
-
-    def processKey(self):
-        k=self.getKey()
-        match k:
-            case key.BACKSPACE:
-                self.backup()
-                self.printChar(' ')
-                self.backup()
-            case _:
-                self.print(k)
 
 def main():
     s='\033[37m'
